@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////
+﻿///////////////////////////////////////////////////////////////////////////////
 // \author (c) Marco Paland (marco@paland.com)
 //             2018, PALANDesign Hannover, Germany
 //
@@ -32,6 +32,7 @@ import { BSON } from '../../src/bson';
 import { expect, assert } from 'chai';
 import 'mocha';
 
+// check out https://www.simonv.fr/TypesConvert/?integers for reference values
 
 describe('BSON', () => {
 
@@ -47,11 +48,11 @@ describe('BSON', () => {
       bson: "310000000442534f4e002600000002300008000000617765736f6d65000131003333333333331440103200c20700000000",
     },
     {
-      obj: { int32: 10, int64: 1125899906842624, flo: 3.141592653, str: "Hello äöü", utc: new BSON.UTC("2011-10-10T14:48:00Z"), bool: true, date: new Date("2011-10-10T14:48:00Z") },
+      obj: { int32: 10, int64: 1125899906842624n, flo: 3.141592653, str: "Hello äöü", utc: new BSON.UTC("2011-10-10T14:48:00Z"), bool: true, date: new Date("2011-10-10T14:48:00Z") },
       bson: "6400000010696e743332000a00000012696e74363400000000000000040001666c6f0038e92f54fb21094002737472000d00000048656c6c6f20c3a4c3b6c3bc00097574630000f94dee3201000008626f6f6c000109646174650000f94dee3201000000"
     },
     {
-      obj: { arr: ["foo", "bar", 100, 1000], ta: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]), obj: { int32: 10, int64: 1125899906842624, flo: 3.141592653 } },
+      obj: { arr: ["foo", "bar", 100, 1000], ta: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]), obj: { int32: 10, int64: 1125899906842624n, flo: 3.141592653 } },
       bson: "7500000004617272002900000002300004000000666f6f00023100040000006261720010320064000000103300e8030000000574610008000000000102030405060708036f626a002c00000010696e743332000a00000012696e74363400000000000000040001666c6f0038e92f54fb2109400000"
     },
     {
@@ -75,11 +76,11 @@ describe('BSON', () => {
       bson: "310000000442534f4e002600000002300008000000617765736f6d65000131003333333333331440103200c20700000000",
     },
     {
-      obj: { int32: 10, int64: 1125899906842624, flo: 3.141592653, str: "Hello äöü", utc: new BSON.UTC("2011-10-10T14:48:00Z"), bool: true, date: new Uint8Array([1,2,3,4]), nu: null },
+      obj: { int32: 10, int64: 1125899906842624n, flo: 3.141592653, str: "Hello äöü", utc: new BSON.UTC("2011-10-10T14:48:00Z"), bool: true, date: new Uint8Array([1,2,3,4]), nu: null },
       bson: "6900000010696e743332000a00000012696e74363400000000000000040001666c6f0038e92f54fb21094002737472000d00000048656c6c6f20c3a4c3b6c3bc00097574630000f94dee3201000008626f6f6c00010564617465000400000000010203040a6e750000"
     },
     {
-      obj: { arr: ["foo", "bar", 100, 1000], ta: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]), obj: { int32: 10, int64: 1125899906842624, flo: 3.141592653 } },
+      obj: { arr: ["foo", "bar", 100, 1000], ta: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]), obj: { int32: 10, int64: 1125899906842624n, flo: 3.141592653 } },
       bson: "7500000004617272002900000002300004000000666f6f00023100040000006261720010320064000000103300e8030000000574610008000000000102030405060708036f626a002c00000010696e743332000a00000012696e74363400000000000000040001666c6f0038e92f54fb2109400000"
     },
     {
@@ -123,6 +124,26 @@ describe('BSON', () => {
     it("checks negative int64", function () {
       let bson = BSON.serialize({ int: -78187493520 });
       expect(bin2hex(bson)).to.deep.equal("1200000012696e74007087a9cbedffffff00");
+    });
+
+    it("checks bigint64", function () {
+      let bson = BSON.serialize({ int: 0x1234567890n });
+      expect(bin2hex(bson)).to.deep.equal("1200000012696e7400907856341200000000");
+    });
+
+    it("checks bigint64 > 2^53", function () {
+      let bson = BSON.serialize({ int: 0x123456789ABCDEFFn });
+      expect(bin2hex(bson)).to.deep.equal("1200000012696e7400ffdebc9a7856341200");
+    });
+
+    it("checks negative bigint64", function () {
+      let bson = BSON.serialize({ int: -78187493520n });
+      expect(bin2hex(bson)).to.deep.equal("1200000012696e74007087a9cbedffffff00");
+    });
+
+    it("checks negative bigint64 < -2^53", function () {
+      let bson = BSON.serialize({ int: -123456789123456789n });
+      expect(bin2hex(bson)).to.deep.equal("1200000012696e7400eba02f53b46449fe00");
     });
 
     it("checks double (64-bit binary floating point)", function () {
@@ -219,17 +240,32 @@ describe('BSON', () => {
 
     it("checks int64", function () {
       let obj = BSON.deserialize(hex2bin("1200000012696e7400907856341200000000"));
-      expect(obj).to.deep.equal({ int: 0x1234567890 });
-    });
-
-    it("checks int64 > 2^53", function () {
-      let obj = BSON.deserialize(hex2bin("1200000012696e7400FFDEBC9A7856341200"));
-      expect(obj).to.deep.equal({ int: 0x123456789ABCDEFF });
+      expect(obj).to.deep.equal({ int: 0x1234567890n });
     });
 
     it("checks negative int64", function () {
       let obj = BSON.deserialize(hex2bin("1200000012696e74007087a9cbedffffff00"));
-      expect(obj).to.deep.equal({ int: -78187493520 });
+      expect(obj).to.deep.equal({ int: -78187493520n });
+    });
+
+    it("checks bigint64", function () {
+      let obj = BSON.deserialize(hex2bin("1200000012696e7400907856341200000000"));
+      expect(obj).to.deep.equal({ int: 0x1234567890n });
+    });
+
+    it("checks bigint64 > 2^53", function () {
+      let obj = BSON.deserialize(hex2bin("1200000012696e7400FFDEBC9A7856341200"));
+      expect(obj).to.deep.equal({ int: 0x123456789ABCDEFFn });
+    });
+
+    it("checks negative bigint64", function () {
+      let obj = BSON.deserialize(hex2bin("1200000012696e74007087a9cbedffffff00"));
+      expect(obj).to.deep.equal({ int: -78187493520n });
+    });
+
+    it("checks negative bigint64 < -2^53", function () {
+      let obj = BSON.deserialize(hex2bin("1200000012696e7400eba02f53b46449fe00"));
+      expect(obj).to.deep.equal({ int: -123456789123456789n });   
     });
 
     it("checks double (64-bit binary floating point)", function () {

@@ -33,6 +33,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+type LittleEndian = Uint8Array
 
 export namespace BSON {
 
@@ -46,7 +47,7 @@ export namespace BSON {
    * UUID class
    */
   export class UUID {
-    private _id: Uint8Array;
+    private _id: LittleEndian;
 
     constructor(id: Uint8Array | Array<number>) {
       this._id = new Uint8Array(id);
@@ -62,7 +63,7 @@ export namespace BSON {
    * ObjectId class (for mongoDB usage)
    */
   export class ObjectId {
-    private _id: Uint8Array;
+    private _id: LittleEndian;
 
     constructor(id: Uint8Array | Array<number>) {
       this._id = new Uint8Array(id);
@@ -78,10 +79,10 @@ export namespace BSON {
    * The UTC class contains the milliseconds since the Unix epoch (1.1.1970 00:00:00 UTC)
    */
   export class UTC {
-    private _time: Uint8Array;
+    private _time: LittleEndian;
 
     constructor(time?: Uint8Array | Array<number> | string) {
-      this._time = (typeof time !== 'string') ? new Uint8Array(time || number2long(Date.now())) : number2long(+new Date(time));
+      this._time = (typeof time !== 'string') ? new Uint8Array(time || numberToLittleEndian(Date.now())) : numberToLittleEndian(+new Date(time));
     }
 
     buffer(): Uint8Array {
@@ -93,18 +94,18 @@ export namespace BSON {
      * @param {String} date (ISO) Date string
      */
     fromString(date: string): void {
-      this._time = number2long(+new Date(date));
+      this._time = numberToLittleEndian(+new Date(date));
     }
 
     /**
      * Returns the milliseconds since the Unix epoch (UTC)
      */
     toNumber(): number {
-      return long2number(this._time);
+      return littleEndianToNumber(this._time);
     }
 
     toDate(): Date {
-      return new Date(long2number(this._time));
+      return new Date(littleEndianToNumber(this._time));
     }
   }
 
@@ -152,6 +153,9 @@ export namespace BSON {
         }
         else
           return len + 8;                           // 64 bit double & float
+
+      case BigInt:
+        return len + 8;
 
       case Boolean:
         return len + 1;
@@ -280,7 +284,7 @@ export namespace BSON {
           else {
             buffer[i++] = 0x12;       // BSON type: int64
             i += cstring(name, buffer, i);
-            buffer.set(number2long(value), i);
+            buffer.set(numberToLittleEndian(value), i);
             i += 8;
           }
         }
@@ -293,6 +297,13 @@ export namespace BSON {
           buffer.set(d, i);
           i += 8;
         }
+        return i;
+
+      case BigInt:
+        buffer[i++] = 0x12       // BSON type: int64
+        i += cstring(name, buffer, i);
+        buffer.set(bigintToLittleEndian(value), i);
+        i += 8;
         return i;
 
       case Boolean:
@@ -322,7 +333,7 @@ export namespace BSON {
       case Date:
         buffer[i++] = 0x09;           // BSON type: UTC datetime
         i += cstring(name, buffer, i);
-        buffer.set(number2long(value.getTime()), i);
+        buffer.set(numberToLittleEndian(value.getTime()), i);
         i += 8;
         return i;
 
@@ -458,7 +469,7 @@ export namespace BSON {
           break;
 
         case 0x09:                    // BSON type: UTC datetime
-          object[name] = useUTC ? new UTC(buffer.subarray(i, i += 8)) : new Date(long2number(buffer.subarray(i, i += 8)));
+          object[name] = useUTC ? new UTC(buffer.subarray(i, i += 8)) : new Date(littleEndianToNumber(buffer.subarray(i, i += 8)));
           break;
 
         case 0x0A:                    // BSON type: Null
@@ -491,7 +502,7 @@ export namespace BSON {
           break;
 
         case 0x12:                    // BSON type: 64-bit integer
-          object[name] = long2number(buffer.subarray(i, i += 8));
+          object[name] = littleEndianToBigInt(buffer.subarray(i, i += 8));
           break;
 
         default:
@@ -507,11 +518,12 @@ export namespace BSON {
   // H E L P E R
 
   /**
-   * Convert a number to a 64 bit integer representation
+   * Convert a number to a 64 bit integer Little-Endian representation
+   * Handles integers and floats
    * @param {Number} value Number to convert
    * @return {Uint8Array} Converted number
    */
-  function number2long(value: number): Uint8Array {
+  function numberToLittleEndian(value: number): Uint8Array {
     let buf = new Uint8Array(8);
     if (Math.floor(value) === value) {
       const TWO_PWR_32 = 4294967296;
@@ -533,18 +545,82 @@ export namespace BSON {
     return buf;
   }
 
+  /**
+   * Convert a bigint to a 64 bit integer representation
+   * Handles integers
+   * @param {BigInt} value BigInt to convert
+   * @return {Uint8Array} Converted bigint
+   */
+  function bigintToLittleEndian(value: bigint): Uint8Array {
+    const buf = new Uint8Array(8);
+    let isNegative = false;
+
+    if (value < 0n) {
+      isNegative = true;
+      value = -value;
+    }
+
+    for (let i = 0; i < 8; i++) {
+      buf[i] = Number(value & 0xFFn);
+      value >>= 8n;
+    }
+
+    if (isNegative) {
+      let carry = 1;
+      for (let i = 0; i < 8; i++) {
+        const complement = (buf[i] ^ 0xFF) + carry;
+        buf[i] = complement & 0xFF;
+        carry = complement >> 8;
+      }
+    }
+
+    return buf;
+  }
+
 
   /**
-   * Convert 64 bit integer to Number
-   * @param {Uint8Array} buffer Buffer containing a 64 bit integer as typed array at offset position. LSB is [0], MSB is [7]
+   * Convert 64 bit Little-Endian integer to Number
+   * @param {Uint8Array} buffer Little-Endian buffer containing a 64 bit integer as typed array at offset position. LSB is [0], MSB is [7]
    * @param {Number} offset Offset in buffer, where the integer starts
    * @return {Number} Converted number
    */
-  function long2number(buffer: Uint8Array, offset: number = 0): number {
+  function littleEndianToNumber(buffer: Uint8Array, offset: number = 0): number {
     const TWO_PWR_32 = 4294967296;
     let lo = buffer[offset++] | buffer[offset++] << 8 | buffer[offset++] << 16 | buffer[offset++] << 24;
     let hi = buffer[offset++] | buffer[offset++] << 8 | buffer[offset++] << 16 | buffer[offset]   << 24;
     return hi * TWO_PWR_32 + ((lo >= 0) ? lo : TWO_PWR_32 + lo);
+  }
+
+  /**
+   * Convert 64 bit Little-Endian integer to BigInt
+   * @param {Uint8Array} buffer Little-Endian buffer containing a 64 bit integer as typed array at offset position. LSB is [0], MSB is [7]
+   * @param {Number} offset Offset in buffer, where the integer starts
+   * @return {Number} Converted bigint
+   */
+  function littleEndianToBigInt(buffer: Uint8Array, offset: number = 0): bigint {
+    let value = 0n;
+    let sign = 1n;
+
+    // Check if the most significant bit is set (sign bit)
+    if (buffer[offset + 7] & 0x80) {
+      // Negative number
+      sign = -1n;
+
+      // Perform two's complement conversion
+      let carry = 1;
+      for (let i = 0; i < 8; i++) {
+        const complement = (buffer[offset + i] ^ 0xFF) + carry;
+        value += BigInt(complement & 0xFF) << (BigInt(i) * 8n);
+        carry = complement >> 8;
+      }
+    } else {
+      // Positive number
+      for (let i = 0; i < 8; i++) {
+        value += BigInt(buffer[offset + i]) << (BigInt(i) * 8n);
+      }
+    }
+
+    return value * sign;
   }
 
   const utf8Encoder = new TextEncoder();
