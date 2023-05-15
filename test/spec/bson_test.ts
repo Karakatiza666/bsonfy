@@ -213,6 +213,11 @@ describe('BSON', () => {
       expect(bin2hex(bson)).to.deep.equal("16000000076f696400a80557f05c6d7ad09fa7357000");
     });
 
+    it("checks RegExp", function () {
+      let bson = BSON.serialize({ regex: new RegExp("([!#-'*+/-9=?A-Z^-~-]+(\.[!#-'*+/-9=?A-Z^-~-]+)*|\"\(\[\]!#-[^-~ \t]|(\\[\t -~]))+\")@([!#-'*+/-9=?A-Z^-~-]+(\.[!#-'*+/-9=?A-Z^-~-]+)*|\[[\t -Z^-~]*])") });
+      expect(bin2hex(bson)).to.deep.equal("960000000b726567657800285b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b282e5b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b292a7c22285b5d21232d5b5e2d7e20095d7c285c5b09202d7e5d29292b222940285b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b282e5b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b292a7c5b5b09202d5a5e2d7e5d2a5d2900");
+    });
+
     it("checks complex objects", function () {
       for (let i = 0; i < serialize_vector.length; i++) {
         let bson = BSON.serialize(serialize_vector[i].obj);
@@ -335,6 +340,11 @@ describe('BSON', () => {
     it("checks ObjectId", function () {
       let obj = BSON.deserialize(hex2bin("16000000076f696400a80557f05c6d7ad09fa7357000"));
       expect(obj).to.deep.equal({ oid: new BSON.ObjectId([0xa8, 0x05, 0x57, 0xf0, 0x5c, 0x6d, 0x7a, 0xd0, 0x9f, 0xa7, 0x35, 0x70]) });
+    });
+
+    it("checks RegExp", function () {
+      let obj = BSON.deserialize(hex2bin("960000000b726567657800285b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b282e5b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b292a7c22285b5d21232d5b5e2d7e20095d7c285c5b09202d7e5d29292b222940285b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b282e5b21232d272a2b2f2d393d3f412d5a5e2d7e2d5d2b292a7c5b5b09202d5a5e2d7e5d2a5d2900"));
+      expect(obj).to.deep.equal({ regex: new RegExp("([!#-'*+/-9=?A-Z^-~-]+(\.[!#-'*+/-9=?A-Z^-~-]+)*|\"\(\[\]!#-[^-~ \t]|(\\[\t -~]))+\")@([!#-'*+/-9=?A-Z^-~-]+(\.[!#-'*+/-9=?A-Z^-~-]+)*|\[[\t -Z^-~]*])") });
     });
 
     it("checks complex objects", function () {

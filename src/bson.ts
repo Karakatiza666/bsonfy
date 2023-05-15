@@ -178,6 +178,9 @@ export namespace BSON {
       case ObjectId:
         return len + 12;
 
+      case RegExp:
+        return len + (value as RegExp).source.length // TODO: add flags serialization // + value.global + value.ignoreCase + value.multiline
+
       default:
         // unsupported type
         return 0;
@@ -364,9 +367,11 @@ export namespace BSON {
         buffer[i++] = 0x0B;           // BSON type: Regular expression
         i += cstring(name, buffer, i);
         i += cstring(value.source, buffer, i);
-        if (value.global)     buffer[i++] = 0x73;   // s = 'g'
-        if (value.ignoreCase) buffer[i++] = 0x69;   // i
-        if (value.multiline)  buffer[i++] = 0x6d;   // m
+        --i;
+        // TODO: add flags serialization
+        // if (value.global)     buffer[i++] = 0x73;   // s = 'g'
+        // if (value.ignoreCase) buffer[i++] = 0x69;   // i
+        // if (value.multiline)  buffer[i++] = 0x6d;   // m
         buffer[i++] = 0;
         return i;
 
@@ -480,6 +485,7 @@ export namespace BSON {
           end = i;
           // pattern
           while (end < buffer.length && buffer[end++] !== 0x00);
+          --end;
           if (end >= buffer.length) {
             // Document error: Illegal key name
             return undefined;
@@ -488,13 +494,17 @@ export namespace BSON {
           i = end;
           // flags
           while (end < buffer.length && buffer[end++] !== 0x00);
+          --end;
           if (end >= buffer.length) {
             // Document error: Illegal key name
             return undefined;
           }
-          let flags = bin2str(buffer.subarray(i, end));
-          i = end;
-          object[name] = new RegExp(pat, flags);
+          // TODO: add flags serialization
+          // let flags = bin2str(buffer.subarray(i, end));
+          // i = end;
+          // object[name] = new RegExp(pat, flags);
+          i = end
+          object[name] = new RegExp(pat);
           break;
 
         case 0x10:                    // BSON type: 32-bit integer
