@@ -199,7 +199,7 @@ export namespace BSON {
     return buffer;
   }
 
-
+  
   /**
    * Private, used by serialize() and is called recursively
    * @param object
@@ -211,12 +211,46 @@ export namespace BSON {
 
     if (object.constructor === Array) {
       for (let j = 0, len = object.length; j < len; j++) {
-        i = packElement(j.toString(), object[j], buffer, i);
+        i = packElement(j.toString(), object[j], buffer, i, serializeEx);
       }
     }
     else {
       for (let key in object) {
-        i = packElement(key, object[key], buffer, i);
+        i = packElement(key, object[key], buffer, i, serializeEx);
+      }
+    }
+    buffer[i++] = 0;  // terminating zero
+    return i;
+  }
+
+  /**
+   * Serialize an object to BSON format with keys sorted
+   * @param {Object} object The object to serialize
+   * @return {Uint8Array} An byte array with the BSON representation
+   */
+  export function serializeOrdered(object: any): Uint8Array {
+    let buffer = new Uint8Array(getObjectSize(object));
+    serializeExOrdered(object, buffer);
+    return buffer;
+  }
+
+  /**
+   * Private, used by serializeOrdered() and is called recursively
+   * @param object
+   * @param buffer
+   * @param i
+   */
+  function serializeExOrdered(object: any, buffer: Uint8Array, i: number = 0): number {
+    i += int32(buffer.length, buffer, i);
+
+    if (Array.isArray(object)) {
+      for (let j = 0, len = object.length; j < len; j++) {
+        i = packElement(j.toString(), object[j], buffer, i, serializeExOrdered);
+      }
+    }
+    else {
+      for (let key in Object.keys(object).sort()) {
+        i = packElement(key, object[key], buffer, i, serializeExOrdered);
       }
     }
     buffer[i++] = 0;  // terminating zero
@@ -263,7 +297,7 @@ export namespace BSON {
    * @param buffer
    * @param i
    */
-  function packElement(name: string, value: any, buffer: Uint8Array, i: number): number {
+  function packElement(name: string, value: any, buffer: Uint8Array, i: number, serializeEx: (object: any, buffer: Uint8Array, i?: number) => number): number {
     if (value === undefined || value === null) {
       buffer[i++] = 0x0A;             // BSON type: Null
       i += cstring(name, buffer, i);
