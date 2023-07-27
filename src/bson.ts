@@ -118,7 +118,7 @@ export namespace BSON {
   function getObjectSize(obj: Object): number {
     let len = 4 + 1;                                // handle the obj.length prefix + terminating '0'
     for (let key in obj) {
-      len += getElementSize(key, obj[key]);
+      len += getElementSize(key, (obj as any)[key]);
     }
     return len;
   }
@@ -249,7 +249,7 @@ export namespace BSON {
       }
     }
     else {
-      for (let key in Object.keys(object).sort()) {
+      for (let key of Object.keys(object).sort()) {
         i = packElement(key, object[key], buffer, i, serializeExOrdered);
       }
     }
@@ -417,27 +417,33 @@ export namespace BSON {
 
   /**
    * Deserialize (parse) BSON data to an object
-   * @param {Uint8Array} buffer The buffer with BSON data to convert
+   * @param {Uint8Array | ArrayBuffer} buffer The buffer with BSON data to convert
    * @param {Boolean} useUTC Optional, if set an UTC object is created for 'UTC datetime', else an Date object. Defaults to false
    * @return {Object} Returns an object or an array
    */
-  export function deserialize(buffer: Uint8Array, useUTC: boolean = false, i: number = 0, returnArray: boolean = false): Array<any> | Object {
+  export function deserialize(buffer: Uint8Array | ArrayBuffer, useUTC = false, i = 0, returnArray = false): Array<any> | Object {
+    if (!(buffer instanceof Uint8Array)) {
+      return deserialize(new Uint8Array(buffer), useUTC, i, returnArray)
+    }
     // check size
     if (buffer.length < 5) {
       // Document error: Size < 5 bytes
-      return undefined;
+      // return undefined;
+      throw new Error('Document error: Size < 5 bytes')
     }
     let size = buffer[i++] | buffer[i++] << 8 | buffer[i++] << 16 | buffer[i++] << 24;
     if (size < 5 || size > buffer.length) {
       // Document error: Size mismatch
-      return undefined;
+      // return undefined;
+      throw new Error('Document error: Size mismatch')
     }
     if (buffer[buffer.length - 1] !== 0x00) {
       // Document error: Missing termination
-      return undefined;
+      // return undefined;
+      throw new Error('Document error: Missing termination')
     }
 
-    let object = returnArray ? [] : {};   // needed for type ARRAY recursion later
+    let object: any = returnArray ? [] : {};   // needed for type ARRAY recursion later
 
     for (;;) {
       // get element type
@@ -449,11 +455,12 @@ export namespace BSON {
       for (; buffer[end] !== 0x00 && end < buffer.length; end++);
       if (end >= buffer.length - 1) {
         // Document error: Illegal key name
-        return undefined;
+        // return undefined;
+        throw new Error('Document error: Illegal key name')
       }
-      let name: any = bin2str(buffer.subarray(i, end));
+      let name: string | number = bin2str(buffer.subarray(i, end));
       if (returnArray) {
-        name = parseInt(name);        // convert to number as array index
+        name = parseInt(name as string); // convert to number as array index
       }
       i = ++end;                      // skip terminating zero
 
@@ -485,7 +492,8 @@ export namespace BSON {
           if (buffer[i++] === 0x04) { // BSON subtype: UUID
             if (size !== 16) {
               // Element error: Wrong UUID length
-              return undefined;
+              // return undefined;
+              throw new Error('Element error: Wrong UUID length')
             }
             object[name] = new UUID(buffer.subarray(i, i += size));
           }
@@ -522,7 +530,8 @@ export namespace BSON {
           --end;
           if (end >= buffer.length) {
             // Document error: Illegal key name
-            return undefined;
+            // return undefined;
+            throw new Error('Document error: Illegal key name')
           }
           let pat = bin2str(buffer.subarray(i, end));
           i = end;
@@ -531,7 +540,8 @@ export namespace BSON {
           --end;
           if (end >= buffer.length) {
             // Document error: Illegal key name
-            return undefined;
+            // return undefined;
+            throw new Error('Document error: Illegal key name')
           }
           // TODO: add flags serialization
           // let flags = bin2str(buffer.subarray(i, end));
@@ -551,7 +561,8 @@ export namespace BSON {
 
         default:
           // Parsing error: Unknown element
-          return undefined;
+          // return undefined;
+          throw new Error('Parsing error: Unknown element')
       }
     }
     return object;

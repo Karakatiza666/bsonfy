@@ -333,8 +333,8 @@ describe('BSON', () => {
     it("checks UUID", function () {
       let obj = BSON.deserialize(hex2bin("20000000057575696400100000000443ab2e98623c03e85f541a1745e01bda00"));
       expect(obj).to.deep.equal({ uuid: new BSON.UUID(new Uint8Array([0x43, 0xab, 0x2e, 0x98, 0x62, 0x3c, 0x03, 0xe8, 0x5f, 0x54, 0x1a, 0x17, 0x45, 0xe0, 0x1b, 0xda])) });
-      obj = BSON.deserialize(hex2bin("2100000005757569640011000000040143ab2e98623c03e85f541a1745e01bda00"));
-      expect(obj).to.equal(undefined);
+      expect(() => BSON.deserialize(hex2bin("2100000005757569640011000000040143ab2e98623c03e85f541a1745e01bda00")))
+        .to.throw('Element error: Wrong UUID length')
     });
 
     it("checks ObjectId", function () {
@@ -356,30 +356,29 @@ describe('BSON', () => {
     });
 
     it("checks document too small", function () {
-      let obj = BSON.deserialize(hex2bin("04000000"));
-      expect(obj).to.equal(undefined);
+      expect(() => BSON.deserialize(hex2bin("04000000"))).to.throw('Document error: Size < 5 bytes');
     });
 
     it("checks document termination", function () {
-      let obj = BSON.deserialize(hex2bin("0c00000008626f6f6c000001"));
-      expect(obj).to.equal(undefined);
-      obj = BSON.deserialize(hex2bin("0c00000008626f6f6c0000"));
-      expect(obj).to.equal(undefined);
+      expect(() => BSON.deserialize(hex2bin("0c00000008626f6f6c000001")))
+        .to.throw('Document error: Missing termination');
+      expect(() => BSON.deserialize(hex2bin("0c00000008626f6f6c0000")))
+        .to.throw('Document error: Size mismatch');
     });
 
     it("checks document size mismatch", function () {
-      let obj = BSON.deserialize(hex2bin("0d00000008626f6f6c000000"));
-      expect(obj).to.equal(undefined);
+      expect(() => BSON.deserialize(hex2bin("0d00000008626f6f6c000000")))
+        .to.throw('Document error: Size mismatch');
     });
 
     it("checks illegal keyname", function () {
-      let obj = BSON.deserialize(hex2bin("0c00000008626f6f6c010100"));
-      expect(obj).to.equal(undefined);
+      expect(() => BSON.deserialize(hex2bin("0c00000008626f6f6c010100")))
+        .to.throw('Document error: Illegal key name');
     });
 
     it("checks unknown element", function () {
-      let obj = BSON.deserialize(hex2bin("0c00000018626f6f6c000000"));
-      expect(obj).to.equal(undefined);
+      expect(() => BSON.deserialize(hex2bin("0c00000018626f6f6c000000")))
+        .to.throw('Parsing error: Unknown element');
     });
   });
 
